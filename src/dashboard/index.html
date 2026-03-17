@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lead Enrichment Engine – Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; }
+    header { background: linear-gradient(135deg, #1e3a8a, #7c3aed); padding: 20px 32px; display: flex; align-items: center; justify-content: space-between; }
+    header h1 { font-size: 1.5rem; font-weight: 700; }
+    header .badge { background: rgba(255,255,255,0.2); border-radius: 9999px; padding: 4px 14px; font-size: 0.8rem; }
+    .container { max-width: 1200px; margin: 0 auto; padding: 32px 16px; }
+    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; margin-bottom: 32px; }
+    .kpi-card { background: #1e293b; border-radius: 12px; padding: 24px; border: 1px solid #334155; }
+    .kpi-card .label { font-size: 0.8rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
+    .kpi-card .value { font-size: 2.2rem; font-weight: 700; line-height: 1; }
+    .kpi-card .sub { font-size: 0.8rem; color: #64748b; margin-top: 6px; }
+    .kpi-card.blue .value { color: #60a5fa; }
+    .kpi-card.green .value { color: #34d399; }
+    .kpi-card.purple .value { color: #a78bfa; }
+    .kpi-card.amber .value { color: #fbbf24; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 32px; }
+    @media (max-width: 768px) { .grid2 { grid-template-columns: 1fr; } }
+    .card { background: #1e293b; border-radius: 12px; padding: 24px; border: 1px solid #334155; }
+    .card h2 { font-size: 1rem; font-weight: 600; margin-bottom: 16px; color: #cbd5e1; }
+    .source-item { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #334155; }
+    .source-item:last-child { border-bottom: none; }
+    .source-name { font-size: 0.9rem; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; }
+    .dot.on { background: #34d399; box-shadow: 0 0 6px #34d399; }
+    .dot.off { background: #475569; }
+    .status-label { font-size: 0.75rem; color: #64748b; margin-left: 8px; }
+    .plans { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    @media (max-width: 600px) { .plans { grid-template-columns: 1fr; } }
+    .plan { background: #0f172a; border-radius: 8px; padding: 16px; border: 1px solid #334155; text-align: center; }
+    .plan.featured { border-color: #7c3aed; background: #1e1b4b; }
+    .plan .plan-name { font-weight: 700; font-size: 1rem; margin-bottom: 4px; }
+    .plan .price { font-size: 1.6rem; font-weight: 800; color: #a78bfa; margin: 8px 0; }
+    .plan .quota { font-size: 0.8rem; color: #94a3b8; }
+    .enrich-form { display: flex; flex-direction: column; gap: 12px; }
+    .enrich-form input { background: #0f172a; border: 1px solid #475569; border-radius: 8px; padding: 10px 14px; color: #e2e8f0; font-size: 0.9rem; width: 100%; }
+    .enrich-form input:focus { outline: none; border-color: #7c3aed; }
+    .enrich-form button { background: linear-gradient(135deg, #7c3aed, #1e3a8a); border: none; border-radius: 8px; color: white; padding: 10px; font-size: 0.95rem; font-weight: 600; cursor: pointer; }
+    .enrich-form button:hover { opacity: 0.9; }
+    .result-box { background: #0f172a; border-radius: 8px; border: 1px solid #334155; padding: 14px; margin-top: 12px; max-height: 260px; overflow-y: auto; font-size: 0.75rem; white-space: pre-wrap; color: #94a3b8; display: none; }
+    .db-status { font-size: 0.75rem; padding: 4px 10px; border-radius: 9999px; }
+    .db-status.on { background: #065f46; color: #6ee7b7; }
+    .db-status.off { background: #3b1d28; color: #fca5a5; }
+    footer { text-align: center; padding: 32px; color: #475569; font-size: 0.8rem; }
+    .spinner { display: inline-block; width: 18px; height: 18px; border: 2px solid #475569; border-top-color: #7c3aed; border-radius: 50%; animation: spin 0.7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🚀 Lead Enrichment Engine</h1>
+    <div style="display:flex;align-items:center;gap:12px;">
+      <span id="dbStatus" class="db-status off">DB offline</span>
+      <span class="badge">Revenue Target: $20K/mo</span>
+    </div>
+  </header>
+
+  <div class="container">
+    <!-- KPI Cards -->
+    <div class="kpi-grid">
+      <div class="kpi-card blue">
+        <div class="label">Enrichments Today</div>
+        <div class="value" id="kpiToday"><span class="spinner"></span></div>
+        <div class="sub" id="kpiMonthly">Loading…</div>
+      </div>
+      <div class="kpi-card green">
+        <div class="label">Data Coverage</div>
+        <div class="value" id="kpiCoverage"><span class="spinner"></span></div>
+        <div class="sub" id="kpiSources">—</div>
+      </div>
+      <div class="kpi-card purple">
+        <div class="label">Monthly Revenue</div>
+        <div class="value" id="kpiRevenue"><span class="spinner"></span></div>
+        <div class="sub">Target: $20,000</div>
+      </div>
+      <div class="kpi-card amber">
+        <div class="label">This Month</div>
+        <div class="value" id="kpiMonthEnrich"><span class="spinner"></span></div>
+        <div class="sub">total enrichments</div>
+      </div>
+    </div>
+
+    <!-- Sources + Plans -->
+    <div class="grid2">
+      <div class="card">
+        <h2>📡 Data Sources</h2>
+        <div id="sourceList"><p style="color:#64748b;font-size:0.85rem;">Loading sources…</p></div>
+      </div>
+
+      <div class="card">
+        <h2>💳 Pricing Plans</h2>
+        <div class="plans">
+          <div class="plan">
+            <div class="plan-name">Starter</div>
+            <div class="price">$199</div>
+            <div class="quota">1,000/month</div>
+          </div>
+          <div class="plan featured">
+            <div class="plan-name">Growth</div>
+            <div class="price">$599</div>
+            <div class="quota">10,000/month</div>
+          </div>
+          <div class="plan">
+            <div class="plan-name">Scale</div>
+            <div class="price">$1,999</div>
+            <div class="quota">Unlimited</div>
+          </div>
+        </div>
+        <div style="margin-top:16px;">
+          <canvas id="revenueChart" height="120"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Enrich Form -->
+    <div class="card">
+      <h2>⚡ Quick Enrich Test</h2>
+      <div class="enrich-form">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <input type="email" id="testEmail" placeholder="Email (e.g. john@acme.com)" />
+          <input type="text" id="testDomain" placeholder="Domain (e.g. stripe.com)" />
+        </div>
+        <input type="text" id="testApiKey" placeholder="X-API-Key (set ADMIN_API_KEY on server)" />
+        <button id="enrichBtn">Enrich Now →</button>
+      </div>
+      <div class="result-box" id="resultBox"></div>
+    </div>
+  </div>
+
+  <footer>Lead Enrichment Engine &nbsp;|&nbsp; <a href="/" style="color:#7c3aed;">API Docs</a> &nbsp;|&nbsp; <a href="/api/v1/billing/plans" style="color:#7c3aed;">Pricing</a></footer>
+
+  <script>
+    let revenueChart;
+
+    async function loadStats() {
+      try {
+        const r = await fetch('/api/v1/dashboard/stats');
+        const d = await r.json();
+
+        document.getElementById('kpiToday').textContent = d.enrichments_today.toLocaleString();
+        document.getElementById('kpiMonthly').textContent = `${d.enrichments_this_month.toLocaleString()} this month`;
+        document.getElementById('kpiCoverage').textContent = d.data_coverage_pct + '%';
+        document.getElementById('kpiSources').textContent = `${d.active_sources} of ${d.total_sources} sources active`;
+        document.getElementById('kpiRevenue').textContent = '$' + d.monthly_revenue.toLocaleString();
+        document.getElementById('kpiMonthEnrich').textContent = d.enrichments_this_month.toLocaleString();
+
+        const dbEl = document.getElementById('dbStatus');
+        if (d.db_connected) { dbEl.textContent = 'DB online'; dbEl.className = 'db-status on'; }
+        else { dbEl.textContent = 'DB offline'; dbEl.className = 'db-status off'; }
+
+        // Source list
+        const sl = document.getElementById('sourceList');
+        sl.innerHTML = (d.sources || []).map(s => `
+          <div class="source-item">
+            <span class="source-name">${s.name}</span>
+            <div style="display:flex;align-items:center;">
+              <div class="dot ${s.active ? 'on' : 'off'}"></div>
+              <span class="status-label">${s.active ? 'Active' : 'Not configured'}</span>
+            </div>
+          </div>
+        `).join('');
+
+        // Revenue chart
+        const target = 20000;
+        const actual = d.monthly_revenue || 0;
+        if (!revenueChart) {
+          const ctx = document.getElementById('revenueChart').getContext('2d');
+          revenueChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+              labels: ['Monthly Revenue', 'Target'],
+              datasets: [{ data: [actual, target], backgroundColor: ['#7c3aed', '#334155'], borderRadius: 6 }],
+            },
+            options: {
+              responsive: true, plugins: { legend: { display: false } },
+              scales: {
+                y: { ticks: { color: '#94a3b8', callback: v => '$' + v.toLocaleString() }, grid: { color: '#1e293b' } },
+                x: { ticks: { color: '#94a3b8' }, grid: { display: false } },
+              },
+            },
+          });
+        } else {
+          revenueChart.data.datasets[0].data = [actual, target];
+          revenueChart.update();
+        }
+      } catch (e) {
+        console.error('Failed to load stats:', e);
+      }
+    }
+
+    async function runEnrich() {
+      const email = document.getElementById('testEmail').value.trim();
+      const domain = document.getElementById('testDomain').value.trim();
+      const apiKey = document.getElementById('testApiKey').value.trim();
+      const btn = document.getElementById('enrichBtn');
+      const box = document.getElementById('resultBox');
+
+      if (!email && !domain) { box.style.display='block'; box.textContent='Enter an email or domain.'; return; }
+
+      btn.textContent = 'Enriching…';
+      btn.disabled = true;
+      box.style.display = 'none';
+
+      try {
+        const payload = {};
+        if (email) payload.email = email;
+        if (domain) payload.domain = domain;
+
+        const headers = { 'Content-Type': 'application/json' };
+        if (apiKey) headers['X-API-Key'] = apiKey;
+
+        const r = await fetch('/api/enrich', { method: 'POST', headers, body: JSON.stringify(payload) });
+        const data = await r.json();
+        box.style.display = 'block';
+        box.textContent = JSON.stringify(data, null, 2);
+      } catch (e) {
+        box.style.display = 'block';
+        box.textContent = 'Error: ' + e.message;
+      } finally {
+        btn.textContent = 'Enrich Now →';
+        btn.disabled = false;
+      }
+    }
+
+    loadStats();
+    setInterval(loadStats, 30000);
+    document.getElementById('enrichBtn').addEventListener('click', runEnrich);
+  </script>
+</body>
+</html>
