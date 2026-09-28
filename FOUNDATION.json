@@ -1,0 +1,6 @@
+{
+  "system": "lead-enrichment-engine",
+  "tier": "CASH",
+  "stamp": "sidecar",
+  "stamped_by": "garcar-repo-foundry"
+}
